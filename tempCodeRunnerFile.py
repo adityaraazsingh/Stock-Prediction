@@ -1,0 +1,1 @@
+streamlit run "C:\Users\adity\Documents\-PRIORITY-\Stock Prediction\app.py"   

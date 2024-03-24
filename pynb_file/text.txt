@@ -1,0 +1,195 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import pandas_datareader as data
+import yfinance as yf
+
+start = '2012-01-01'
+end = '2024-01-01'
+
+stock='GOOG'
+data=yf.download(stock,start,end)
+
+data.reset_index(inplace=True)
+ma_100_days=data.Close.rolling(100).mean()
+
+plt.figure(figsize=(8,6))
+plt.plot(ma_100_days,'r')
+plt.plot(data.Close,'g')
+plt.show()
+
+ma_200_days=data.Close.rolling(200).mean()
+
+plt.figure(figsize=(8,6))
+plt.plot(ma_100_days,'r')
+plt.plot(ma_200_days,'b')
+plt.plot(data.Close,'g')
+plt.show()
+
+data.dropna(inplace=True)
+
+data_train=pd.DataFrame(data.Close[0:int(len(data)*0.80)])
+data_test=pd.DataFrame(data.Close[int(len(data)*0.80):len(data)])
+
+from sklearn.preprocessing import MinMaxScaler
+scaler=MinMaxScaler(feature_range=(0,1))
+data_train_scale= scaler.fit_transform(data_train)
+
+x=[]
+y=[]
+
+
+for i in range(100, data_train_scale.shape[0]):
+    x.append(data_train_scale[i-100:i])
+    y.append(data_train_scale[i,0])
+
+x,y =np.array(x), np.array(y)
+
+from keras.layers import Dense, Dropout , LSTM
+from keras.models import Sequential
+
+
+
+model= Sequential()
+model.add(LSTM(units=50, activation='relu', return_sequences=True,
+              input_shape=((x.shape[1],1))))
+model.add(Dropout(0.2))
+
+model.add(LSTM(units =60 , activation ='relu', return_sequences=True))
+model.add(Dropout(0.3))
+
+model.add(LSTM(units=80,activation='relu', return_sequences = True))
+model.add(Dropout(0.4))
+
+model.add(LSTM(units=120,activation ='relu'))
+model.add(Dropout(0.5))
+
+model.add(Dense(units =1))
+
+model.compile(optimizer='adam', loss= 'mean_squared_error')
+
+model.fit(x,y, epochs =50 , batch_size=32, verbose =1)
+
+model.summary()
+
+pas_100_days= data_train.tail(100)
+
+data_test= pd.concat([pas_100_days, data_test], ignore_index=True)
+
+data_test_scale=scaler.fit_transform(data_test)
+
+x=[]
+y=[]
+
+
+for i in range(100, data_test_scale.shape[0]):
+    x.append(data_test_scale[i-100:i])
+    y.append(data_test_scale[i,0])
+
+x,y =np.array(x), np.array(y)
+
+y_predict = model.predict(x)
+
+
+scale=1/scaler.scale_
+
+y_predict= y_predict*scale
+
+ y=y*scale
+
+ plt.figure(figsize=(10,8))
+plt.plot(y_predict, 'r', label = 'Predicted Price')
+plt.plot(y,'g', label='Original Price')
+plt.xlabel('Time')
+plt.ylabel('Price')
+plt.legend()
+plt.show()
+
+model.save('Stock Model .keras')
+
+
+CHAT GPT
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import pandas_datareader as data_reader
+import yfinance as yf
+from keras.layers import Dense, Dropout, LSTM
+from keras.models import Sequential
+from sklearn.preprocessing import MinMaxScaler
+
+# Download stock data
+start_date = '2012-01-01'
+end_date = '2024-01-01'
+stock_symbol = 'GOOG'
+stock_data = yf.download(stock_symbol, start=start_date, end=end_date)
+
+# Preprocessing
+stock_data.reset_index(inplace=True)
+stock_data.dropna(inplace=True)
+
+# Calculate moving averages
+ma_100_days = stock_data['Close'].rolling(100).mean()
+ma_200_days = stock_data['Close'].rolling(200).mean()
+
+# Plot moving averages
+plt.figure(figsize=(8, 6))
+plt.plot(ma_100_days, 'r', label='100-day MA')
+plt.plot(ma_200_days, 'b', label='200-day MA')
+plt.plot(stock_data['Close'], 'g', label='Close Price')
+plt.legend()
+plt.show()
+
+# Prepare training data
+data_train = stock_data['Close'].values.reshape(-1, 1)
+scaler = MinMaxScaler(feature_range=(0, 1))
+data_train_scaled = scaler.fit_transform(data_train)
+
+x_train = []
+y_train = []
+
+for i in range(100, len(data_train_scaled)):
+    x_train.append(data_train_scaled[i - 100:i, 0])
+    y_train.append(data_train_scaled[i, 0])
+
+x_train, y_train = np.array(x_train), np.array(y_train)
+x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
+
+# Define and train the LSTM model
+model = Sequential()
+model.add(LSTM(units=50, activation='relu', return_sequences=True, input_shape=(x_train.shape[1], 1)))
+model.add(Dropout(0.2))
+model.add(LSTM(units=60, activation='relu', return_sequences=True))
+model.add(Dropout(0.3))
+model.add(LSTM(units=80, activation='relu', return_sequences=True))
+model.add(Dropout(0.4))
+model.add(LSTM(units=120, activation='relu'))
+model.add(Dropout(0.5))
+model.add(Dense(units=1))
+
+model.compile(optimizer='adam', loss='mean_squared_error')
+model.fit(x_train, y_train, epochs=50, batch_size=32, verbose=1)
+
+# Make predictions
+data_test_scaled = scaler.transform(data_train[-100:].reshape(-1, 1))
+x_test = []
+for i in range(100, len(data_test_scaled)):
+    x_test.append(data_test_scaled[i - 100:i, 0])
+x_test = np.array(x_test)
+x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
+
+y_pred_scaled = model.predict(x_test)
+y_pred = scaler.inverse_transform(y_pred_scaled)
+
+# Plot predictions
+plt.figure(figsize=(10, 8))
+plt.plot(y_pred, 'r', label='Predicted Price')
+plt.plot(stock_data['Close'][-100:].values, 'g', label='Original Price')
+plt.xlabel('Time')
+plt.ylabel('Price')
+plt.legend()
+plt.show()
+
+# Save the model
+model.save('Stock_Model.h5')
